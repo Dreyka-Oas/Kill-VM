@@ -1,18 +1,20 @@
-if ! dpkg -l | grep -q "nmap"
-then
+#!/bin/bash
+
+if ! dpkg -l | grep -q "nmap"; then
     sudo apt update && sudo apt install nmap -y
 fi
-if ! dpkg -l | grep -q "sshpass"
-then
+
+if ! dpkg -l | grep -q "sshpass"; then
     sudo apt update && sudo apt install sshpass -y
 fi
 
 nom_fichier="output.txt"
 user="permabook"
 password="permabook"
-password2="mdpdebian"
 
-nmap -sn 192.168.103.0/24 | grep -B2 "Oracle VirtualBox virtual NIC" | grep -oP '\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b'  > $nom_fichier
+nmap_output=$(nmap -sn 192.168.103.0/24)
+
+echo "$nmap_output" | grep -B2 "Oracle VirtualBox virtual NIC" | grep -oP '\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b' > "$nom_fichier"
 
 accepter_cle_ssh() {
     ssh-keyscan -H "$1" >> ~/.ssh/known_hosts
@@ -22,10 +24,11 @@ if [ -e "$nom_fichier" ]; then
     while IFS= read -r ligne; do
         accepter_cle_ssh "$ligne"
 
-        if sshpass -p "$password" ssh "$user@$ligne" 'su -' <<EOF
-$password2
+        os=$(echo "$nmap_output" | grep -A2 "$ligne" | tail -n 1 | awk '{$1=""; print $0}')
+        
+        if sshpass -p "$password" ssh "$user@$ligne" 'sudo -S -i init 0' <<EOF
+$password
 EOF
-#init 0
         then
             # Afficher en vert si la VM est éteinte
             echo -e "\e[32mLa VM $ligne est éteinte\e[0m"
@@ -33,9 +36,7 @@ EOF
             # Afficher en rouge si la VM n'est pas éteinte
             echo -e "\e[31mLa VM $ligne n'est pas éteinte\e[0m"
         fi
+
+        
     done < "$nom_fichier"
 fi
-
-# sshpass -p "$password" ssh "$user@$ligne" su - <<EOF
-# mdpdebian
-# init 0
